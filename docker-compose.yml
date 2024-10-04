@@ -1,0 +1,69 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    image: nginx:1.23.1
+    container_name: nginx-reverse-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proshop-net
+    depends_on:
+      - proshop-frontend-app
+      - proshop-backend-app
+    volumes:
+     - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+     - ./certbot/conf:/etc/nginx/ssl
+     - ./certbot/conf:/etc/letsencrypt
+     - ./certbot/data:/var/www/certbot
+    restart: always
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes: 
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/logs:/var/log/letsencrypt
+      - ./certbot/data:/var/www/certbot
+    depends_on: 
+      - reverse-proxy
+    
+  proshop-frontend-app:
+    image: taufiq14s/proshop-frontend:latest
+    stdin_open: true
+    deploy:
+      replicas: 2
+    #Because we use reverse-proxy we don't mapping port to outside of the host, let the reverse proxy handle it
+    # ports:
+    #   - "8080:80"
+    networks:
+      - proshop-net
+    env_file: ./.env
+    
+  proshop-backend-app:
+    image: taufiq14s/proshop-backend:latest
+    #Because we use reverse-proxy we don't mapping port to outside of the host, let the reverse proxy handle it
+    # ports:
+    #   - "5000:5000"
+    deploy:
+      replicas: 2
+    networks:
+      - proshop-net
+    depends_on:
+      - mongodb
+    env_file: ./.env
+
+  mongodb:
+    image: mongo:4.4.11
+    container_name: proshop-mongodb-srv
+    volumes:
+        - ./proshop-app-data:/data/db
+    #Enable port if you need to connect the mongodb
+    # ports:
+    #   - "27017:27017"
+    networks:
+      - proshop-net
+
+networks:
+  proshop-net:
+    driver: bridge
